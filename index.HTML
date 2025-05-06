@@ -103,17 +103,23 @@
     const bombEmoji = "💣";
 
     function spawnFruit() {
-      const x = Math.random() * canvas.width * 0.8 + canvas.width * 0.1;
-      const y = canvas.height + 50;
-      const radius = 60;
-      const speedX = ((Math.random() - 0.5) * 10) * 0.32;
-      const speedY = (-15 - Math.random() * 8) * 1;
-      const gravity = 0.36
-;
-      const type = Math.random() < 0.2 ? "bomb" : "fruit";
-      const emoji = type === "bomb" ? bombEmoji : fruitEmojis[Math.floor(Math.random() * fruitEmojis.length)];
-      fruits.push({ x, y, radius, speedX, speedY, type, emoji, cut: false });
-    }
+  const x = Math.random() * canvas.width * 0.8 + canvas.width * 0.1;
+  const y = canvas.height + 50;
+  let radius = 60;
+  const speedX = ((Math.random() - 0.5) * 10) * 0.32;
+  const speedY = (-15 - Math.random() * 8) * 1;
+  const gravity = 0.36;
+  const type = Math.random() < 0.2 ? "bomb" : "fruit";
+  const emoji = type === "bomb" ? bombEmoji : fruitEmojis[Math.floor(Math.random() * fruitEmojis.length)];
+
+  // Adjust radius based on fruit emoji
+  if (emoji === "🍎") radius *= 1.2;
+  else if (emoji === "🍊") radius *= 1.2;
+  else if (emoji === "🍉") radius *= 1.4;
+  else if (emoji === "🍍") radius *= 1.9;
+
+  fruits.push({ x, y, radius, speedX, speedY, type, emoji, cut: false });
+}
 
     function spawnWave() {
       const count = 3 + Math.floor(Math.random() * 2);
@@ -151,49 +157,55 @@
       trails = trails.slice(-10);
     }
 
-    function detectCuts() {
-      if (trails.length < 2) return;
-      const now = Date.now();
-      let cutCount = 0;
-      for (let fruit of fruits) {
-        if (fruit.cut) continue;
-        for (let j = 0; j < trails.length - 1; j++) {
-          const p1 = trails[j], p2 = trails[j + 1];
-          const dx = fruit.x - ((p1.x + p2.x) / 2);
-          const dy = fruit.y - ((p1.y + p2.y) / 2);
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < fruit.radius / 2) {
-            fruit.cut = true;
-            if (fruit.type === "bomb") {
-              bombSound.play();
-              bombsHit++;
-              if (bombsHit >= maxBombs) return gameOver("You hit 3 bombs!");
-            } else {
-              sliceSound.play();
-              cutCount++;
-            }
-            break;
-          }
+function detectCuts() {
+  if (trails.length < 2) return;
+  const now = Date.now();
+  let cutCount = 0;
+  for (let fruit of fruits) {
+    if (fruit.cut) continue;
+    for (let j = 0; j < trails.length - 1; j++) {
+      const p1 = trails[j], p2 = trails[j + 1];
+      const dx = fruit.x - ((p1.x + p2.x) / 2);
+      const dy = fruit.y - ((p1.y + p2.y) / 2);
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < fruit.radius / 2) {
+        fruit.cut = true;
+        if (fruit.type === "bomb") {
+          bombSound.play();
+          bombsHit++;
+          score -= 50; // Penalty
+          if (score < 0) score = 0; // Prevent negative score
+          if (bombsHit >= maxBombs) return gameOver("You hit 3 bombs!");
+        } else {
+          sliceSound.play();
+          cutCount++;
         }
-      }
-      if (cutCount > 0) {
-        score += cutCount;
-        if (cutCount >= 2 && now - lastCutTime < 600) {
-          score += 1;
-          showCombo();
-        }
-        lastCutTime = now;
-        if (score > highScore) {
-          highScore = score;
-          localStorage.setItem("fruitHighScore", highScore);
-        }
+        break;
       }
     }
+  }
 
-    function showCombo() {
-      comboText.style.display = "block";
-      setTimeout(() => comboText.style.display = "none", 800);
+  if (cutCount > 0) {
+    score += cutCount * 10;
+    // Add bonus for combos
+    if (cutCount >= 2) {
+      let bonus = cutCount === 20 ? 10 : cutCount === 30 ? 30 : 50;
+      score += bonus;
+      showCombo();
     }
+    lastCutTime = now;
+    if (score > highScore) {
+      highScore = score;
+      localStorage.setItem("fruitHighScore", highScore);
+    }
+  }
+}
+
+    function showCombo(bonus = 0) {
+  comboText.textContent = `+${bonus} Combo Bonus!`;
+  comboText.style.display = "block";
+  setTimeout(() => comboText.style.display = "none", 1000);
+}
 
     function drawScore() {
       scoreEl.textContent = `Score: ${score} | Bombs: ${bombsHit} | High Score: ${highScore}`;

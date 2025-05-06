@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Fruit Cut Game</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: skyblue;
+      font-family: sans-serif;
+    }
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      touch-action: none;
+    }
+    #score, #timer, #startBtn, #pauseBtn, #comboText {
+      position: absolute;
+      z-index: 2;
+      font-size: 22px;
+    }
+    #score {
+      top: 10px;
+      left: 10px;
+      color: white;
+    }
+    #timer {
+      top: 10px;
+      right: 10px;
+      color: white;
+    }
+    #startBtn, #pauseBtn {
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      padding: 10px 20px;
+      font-size: 20px;
+      background: #333;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    #pauseBtn {
+      top: 50px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: none;
+    }
+    #comboText {
+      top: 60px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 26px;
+      color: yellow;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <div id="score">Score: 0 | Bombs: 0 | High Score: 0</div>
+  <div id="timer">Time: 59</div>
+  <button id="startBtn">Start Game</button>
+  <button id="pauseBtn">Pause</button>
+  <div id="comboText">Combo!</div>
+
+  <!-- Sound effects -->
+  <audio id="sliceSound" src="https://opengameart.org/sites/default/files/swish-3.wav" preload="auto"></audio>
+  <audio id="bombSound" src="https://opengameart.org/sites/default/files/explosion_0.wav" preload="auto"></audio>
+  <audio id="gameOverSound" src="https://opengameart.org/sites/default/files/gameover4.ogg" preload="auto"></audio>
+  <audio id="bgMusic" src="https://opengameart.org/sites/default/files/Happy%20Tune.ogg" preload="auto" loop></audio>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const scoreEl = document.getElementById("score");
+    const timerEl = document.getElementById("timer");
+    const startBtn = document.getElementById("startBtn");
+    const pauseBtn = document.getElementById("pauseBtn");
+    const comboText = document.getElementById("comboText");
+
+    const sliceSound = document.getElementById("sliceSound");
+    const bombSound = document.getElementById("bombSound");
+    const gameOverSound = document.getElementById("gameOverSound");
+    const bgMusic = document.getElementById("bgMusic");
+
+    let fruits = [], trails = [], score = 0, highScore = localStorage.getItem("fruitHighScore") || 0;
+    let bombsHit = 0, isGameOver = false, isRunning = false, isPaused = false;
+    let timeLeft = 59, comboCount = 0;
+    let lastCutTime = 0;
+    const maxBombs = 3, gravity = 0.4;
+
+    const fruitEmojis = ["🍌", "🍎", "🍉", "🍍", "🍇", "🍊", "🍑", "🍋", "🍒", "🍓"];
+    const bombEmoji = "💣";
+
+    function spawnFruit() {
+      const x = Math.random() * canvas.width * 0.8 + canvas.width * 0.1;
+      const y = canvas.height + 50;
+      const radius = 60;
+      const speedX = ((Math.random() - 0.5) * 10) * 0.6;
+      const speedY = (-15 - Math.random() * 8) * 1.2;
+      const type = Math.random() < 0.2 ? "bomb" : "fruit";
+      const emoji = type === "bomb" ? bombEmoji : fruitEmojis[Math.floor(Math.random() * fruitEmojis.length)];
+      fruits.push({ x, y, radius, speedX, speedY, type, emoji, cut: false });
+    }
+
+    function spawnWave() {
+      const count = 3 + Math.floor(Math.random() * 2);
+      for (let i = 0; i < count; i++) {
+        setTimeout(() => spawnFruit(), i * 150);
+      }
+    }
+
+    function drawFruit(fruit) {
+      ctx.font = fruit.radius + "px Arial";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(fruit.emoji, fruit.x, fruit.y);
+    }
+
+    function updateFruits() {
+      fruits.forEach(fruit => {
+        fruit.x += fruit.speedX;
+        fruit.y += fruit.speedY;
+        fruit.speedY += gravity;
+      });
+      fruits = fruits.filter(f => f.y < canvas.height + 60 && !f.cut);
+    }
+
+    function drawTrails() {
+      ctx.strokeStyle = "white";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      for (let i = 0; i < trails.length - 1; i++) {
+        const p1 = trails[i], p2 = trails[i + 1];
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+      }
+      ctx.stroke();
+      trails = trails.slice(-10);
+    }
+
+    function detectCuts() {
+      if (trails.length < 2) return;
+      const now = Date.now();
+      let cutCount = 0;
+      for (let fruit of fruits) {
+        if (fruit.cut) continue;
+        for (let j = 0; j < trails.length - 1; j++) {
+          const p1 = trails[j], p2 = trails[j + 1];
+          const dx = fruit.x - ((p1.x + p2.x) / 2);
+          const dy = fruit.y - ((p1.y + p2.y) / 2);
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < fruit.radius / 2) {
+            fruit.cut = true;
+            if (fruit.type === "bomb") {
+              bombSound.play();
+              bombsHit++;
+              if (bombsHit >= maxBombs) return gameOver("You hit 3 bombs!");
+            } else {
+              sliceSound.play();
+              cutCount++;
+            }
+            break;
+          }
+        }
+      }
+      if (cutCount > 0) {
+        score += cutCount;
+        if (cutCount >= 2 && now - lastCutTime < 600) {
+          score += 1;
+          showCombo();
+        }
+        lastCutTime = now;
+        if (score > highScore) {
+          highScore = score;
+          localStorage.setItem("fruitHighScore", highScore);
+        }
+      }
+    }
+
+    function showCombo() {
+      comboText.style.display = "block";
+      setTimeout(() => comboText.style.display = "none", 800);
+    }
+
+    function drawScore() {
+      scoreEl.textContent = `Score: ${score} | Bombs: ${bombsHit} | High Score: ${highScore}`;
+    }
+
+    function drawTimer() {
+      timerEl.textContent = `Time: ${timeLeft}`;
+    }
+
+    function gameOver(message = "Game Over!") {
+      isGameOver = true;
+      isRunning = false;
+      clearInterval(fruitSpawner);
+      clearInterval(timerCountdown);
+      gameOverSound.play();
+      bgMusic.pause();
+      alert(`${message}\nScore: ${score}\nHigh Score: ${highScore}`);
+      startBtn.textContent = "Restart Game";
+      startBtn.style.display = "block";
+      pauseBtn.style.display = "none";
+    }
+
+    function gameLoop() {
+      if (!isRunning || isPaused) return requestAnimationFrame(gameLoop);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawScore();
+      drawTimer();
+      updateFruits();
+      fruits.forEach(drawFruit);
+      drawTrails();
+      detectCuts();
+      requestAnimationFrame(gameLoop);
+    }
+
+    let fruitSpawner, timerCountdown, waveCounter = 0;
+
+    function startGame() {
+      fruits = [];
+      trails = [];
+      score = 0;
+      bombsHit = 0;
+      timeLeft = 59;
+      isGameOver = false;
+      isRunning = true;
+      isPaused = false;
+      waveCounter = 0;
+      startBtn.style.display = "none";
+      pauseBtn.style.display = "block";
+      bgMusic.currentTime = 0;
+      bgMusic.play();
+      drawScore();
+      drawTimer();
+      fruitSpawner = setInterval(() => {
+        if (!isGameOver && !isPaused) {
+          waveCounter++;
+          if (waveCounter % 5 === 0) spawnWave();
+          else spawnFruit();
+        }
+      }, 900);
+      timerCountdown = setInterval(() => {
+        if (isRunning && !isPaused) {
+          timeLeft--;
+          if (timeLeft <= 0) gameOver("Time's up!");
+        }
+      }, 1000);
+      gameLoop();
+    }
+
+    function togglePause() {
+      isPaused = !isPaused;
+      pauseBtn.textContent = isPaused ? "Resume" : "Pause";
+      if (isPaused) bgMusic.pause();
+      else bgMusic.play();
+      gameLoop();
+    }
+
+    startBtn.addEventListener("click", startGame);
+    pauseBtn.addEventListener("click", togglePause);
+    canvas.addEventListener("mousemove", e => isRunning && !isPaused && trails.push({ x: e.clientX, y: e.clientY }));
+    canvas.addEventListener("touchmove", e => {
+      if (isRunning && !isPaused) {
+        const touch = e.touches[0];
+        trails.push({ x: touch.clientX, y: touch.clientY });
+      }
+    });
+  </script>
+</body>
+</html>

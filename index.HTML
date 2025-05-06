@@ -73,7 +73,7 @@
 <audio id="sliceSound" src="https://orangefreesounds.com/wp-content/uploads/2023/04/Knife-slicing-sound-effect.mp3" preload="auto"></audio>
 <audio id="bombSound" src="https://opengameart.org/sites/default/files/explosion_0.wav" preload="auto"></audio>
 <audio id="gameOverSound" src="https://actions.google.com/sounds/v1/cartoon/cartoon_boing.ogg" preload="auto"></audio>
-<audio id="bgMusic" src="https://pixabay.com/music/video-games-fight-for-the-future-336841/" preload="auto" loop></audio>
+<audio id="bgMusic" src="https://incompetech.com/music/royalty-free/mp3-royaltyfree/Level%20Up.mp3" preload="auto" loop></audio>
 
 
   <script>
@@ -107,7 +107,7 @@
       const y = canvas.height + 50;
       const radius = 60;
       const speedX = ((Math.random() - 0.5) * 10) * 0.32;
-      const speedY = (-15 - Math.random() * 8) * 0.64;
+      const speedY = (-15 - Math.random() * 8) * 1;
       const gravity = 0.4;
       const type = Math.random() < 0.2 ? "bomb" : "fruit";
       const emoji = type === "bomb" ? bombEmoji : fruitEmojis[Math.floor(Math.random() * fruitEmojis.length)];
